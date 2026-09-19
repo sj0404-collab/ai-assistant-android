@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Open Cloudflare tunnel and wait for URL
+# Open ngrok tunnel and wait for URL
 # Usage: open_tunnel.sh <port> <logfile>
 
 set -euo pipefail
@@ -7,36 +7,36 @@ set -euo pipefail
 PORT="${1:-8097}"
 LOGFILE="${2:-/tmp/tunnel.log}"
 
-echo "=== Starting tunnel for port $PORT ===" >&2
+echo "=== Starting ngrok tunnel for port $PORT ===" >&2
 
-# Download cloudflared if needed - use specific version
-CF="/tmp/cloudflared"
-CF_VERSION="2024.9.1"
-if [ ! -x "$CF" ]; then
-  echo "Downloading cloudflared v$CF_VERSION..." >&2
-  curl -sL --retry 3 -o "$CF" \
-    "https://github.com/cloudflare/cloudflared/releases/download/${CF_VERSION}/cloudflared-linux-amd64"
-  chmod +x "$CF"
-  echo "cloudflared downloaded" >&2
+# Download ngrok if needed
+NGROK="/tmp/ngrok"
+if [ ! -x "$NGROK" ]; then
+  echo "Downloading ngrok..." >&2
+  curl -sL --retry 3 -o /tmp/ngrok.zip \
+    'https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip'
+  unzip -o /tmp/ngrok.zip -d /tmp/
+  chmod +x "$NGROK"
+  echo "ngrok downloaded" >&2
 fi
 
 # Start tunnel
-echo "Starting cloudflared tunnel..." >&2
-nohup "$CF" tunnel --url "http://localhost:$PORT" --no-autoupdate --loglevel debug \
+echo "Starting ngrok tunnel..." >&2
+nohup "$NGROK" http "$PORT" --log=stdout --log-level=debug \
   > "$LOGFILE" 2>&1 &
-CF_PID=$!
-echo $CF_PID > /tmp/cloudflared-$PORT.pid
-echo "cloudflared started with PID $CF_PID" >&2
+NGROK_PID=$!
+echo $NGROK_PID > /tmp/ngrok-$PORT.pid
+echo "ngrok started with PID $NGROK_PID" >&2
 
-# Wait for URL - cloudflared outputs URL to stderr/log
-for i in $(seq 1 90); do
+# Wait for URL - ngrok outputs URL to stdout/log
+for i in $(seq 1 60); do
   sleep 2
   if [ -f "$LOGFILE" ]; then
-    echo "Checking log for URL (attempt $i/90)..." >&2
-    # Try multiple patterns for cloudflared URL
-    URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOGFILE" 2>/dev/null | head -1 || true)
+    echo "Checking log for URL (attempt $i/60)..." >&2
+    # ngrok v3 outputs URL in format: "https://xxx.ngrok-free.app"
+    URL=$(grep -oE 'https://[a-z0-9-]+\.ngrok-free\.app' "$LOGFILE" 2>/dev/null | head -1 || true)
     if [ -z "$URL" ]; then
-      URL=$(grep -oE 'https://[a-z0-9-]+\.cloudflareaccess\.com' "$LOGFILE" 2>/dev/null | head -1 || true)
+      URL=$(grep -oE 'https://[a-z0-9-]+\.ngrok\.io' "$LOGFILE" 2>/dev/null | head -1 || true)
     fi
     if [ -n "$URL" ]; then
       echo "Found URL: $URL" >&2
@@ -52,7 +52,6 @@ for i in $(seq 1 90); do
       echo "URL found but tunnel not responding yet" >&2
     else
       echo "No URL found yet in log" >&2
-      # Debug: show last 10 lines of log
       tail -10 "$LOGFILE" >&2
     fi
   else
