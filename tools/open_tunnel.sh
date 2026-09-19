@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Open localtunnel tunnel and wait for URL
+# Open serveo.net SSH tunnel and wait for URL
 # Usage: open_tunnel.sh <port> <logfile>
 
 set -euo pipefail
@@ -7,35 +7,24 @@ set -euo pipefail
 PORT="${1:-8097}"
 LOGFILE="${2:-/tmp/tunnel.log}"
 
-echo "=== Starting localtunnel for port $PORT ===" >&2
+echo "=== Starting serveo.net SSH tunnel for port $PORT ===" >&2
 
-# Install localtunnel if needed
-LT="/tmp/node_modules/.bin/lt"
-if [ ! -x "$LT" ]; then
-  echo "Installing localtunnel..." >&2
-  npm install -g localtunnel >/tmp/lt-install.log 2>&1 || true
-  LT=$(command -v lt || echo "/tmp/node_modules/.bin/lt")
-  echo "localtunnel installed" >&2
-fi
-
-# Start tunnel
-echo "Starting localtunnel..." >&2
-nohup "$LT" --port "$PORT" --subdomain "ai-hub-${GITHUB_RUN_ID:-$$}" \
+# Start tunnel using SSH to serveo.net
+echo "Starting serveo.net tunnel..." >&2
+nohup ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+  -R "80:localhost:$PORT" serveo.net \
   > "$LOGFILE" 2>&1 &
-LT_PID=$!
-echo $LT_PID > /tmp/lt-$PORT.pid
-echo "localtunnel started with PID $LT_PID" >&2
+SSH_PID=$!
+echo $SSH_PID > /tmp/serveo-$PORT.pid
+echo "serveo.net tunnel started with PID $SSH_PID" >&2
 
-# Wait for URL - localtunnel outputs URL to stdout
+# Wait for URL - serveo.net outputs URL to stdout
 for i in $(seq 1 60); do
   sleep 3
   if [ -f "$LOGFILE" ]; then
     echo "Checking log for URL (attempt $i/60)..." >&2
-    # localtunnel outputs: "your url is: https://xxx.loca.lt"
-    URL=$(grep -oE 'https://[a-z0-9-]+\.loca\.lt' "$LOGFILE" 2>/dev/null | head -1 || true)
-    if [ -z "$URL" ]; then
-      URL=$(grep -oE 'https://[a-z0-9-]+\.localtunnel\.me' "$LOGFILE" 2>/dev/null | head -1 || true)
-    fi
+    # serveo.net outputs: "Forwarding HTTP traffic from https://xxx.serveo.net"
+    URL=$(grep -oE 'https://[a-z0-9-]+\.serveo\.net' "$LOGFILE" 2>/dev/null | head -1 || true)
     if [ -n "$URL" ]; then
       echo "Found URL: $URL" >&2
       # Verify tunnel works
