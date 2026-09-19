@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="providers">
+        <item>OpenRouter</item>
+        <item>OpenAI</item>
+        <item>Anthropic</item>
+        <item>Local (No API)</item>
+    </string-array>
+    <string-array name="provider_values">
+        <item>openrouter</item>
+        <item>openai</item>
+        <item>anthropic</item>
+        <item>local</item>
+    </string-array>
+</resources>
