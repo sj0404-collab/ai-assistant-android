@@ -1,1 +1,1 @@
-{"slot": "hub", "state": "ended", "kind": "AI-Hub", "os": "linux", "url": "", "label": "", "tools": "", "auth": "gate", "updated": "2026-09-19T21:22:19Z"}
+{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://console.serveo.net", "label": "test-emulator", "tools": "opencode, claude, gemini, codex, copilot, qwen, aider, http-server", "auth": "gate", "updated": "2026-09-19T21:40:26Z"}
