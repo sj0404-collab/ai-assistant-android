@@ -32,7 +32,7 @@ for i in $(seq 1 60); do
   sleep 2
   if [ -f "$LOGFILE" ]; then
     echo "Checking log for URL (attempt $i/60)..." >&2
-    URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOGFILE" | head -1)
+    URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOGFILE" 2>/dev/null | head -1 || true)
     if [ -n "$URL" ]; then
       echo "Found URL: $URL" >&2
       # Verify tunnel works
