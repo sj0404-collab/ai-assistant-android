@@ -1,1 +1,1 @@
-{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://console.serveo.net", "label": "test-emulator", "tools": "opencode, claude, gemini, codex, copilot, qwen, aider, http-server", "auth": "gate", "updated": "2026-09-19T21:40:26Z"}
+{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://ai-hub-35470301367.loca.lt", "label": "test-emulator", "tools": "opencode, claude, gemini, codex, copilot, qwen, aider, http-server", "auth": "gate", "updated": "2026-09-19T21:46:51Z"}
