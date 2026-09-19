@@ -36,7 +36,7 @@ import kotlin.text.toRegex
 @SuppressLint("SetJavaScriptEnabled")
 class MainActivity : ComponentActivity() {
 
-    private lateinit var web: WebView
+    internal lateinit var web: WebView
     private lateinit var bar: ProgressBar
 
     private var fileChooser: ValueCallback<Array<Uri>>? = null
@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
 
-        web.addJavascriptInterface(JSBridge(this), "AIBridge")
+        web.addJavascriptInterface(JSBridge(this, web), "AIBridge")
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
@@ -380,7 +380,7 @@ class MainActivity : ComponentActivity() {
 }
 
 // JavaScript Bridge
-class JSBridge(private val activity: MainActivity) {
+class JSBridge(private val activity: MainActivity, private val web: WebView) {
 
     @android.webkit.JavascriptInterface
     fun downloadFile(url: String, filename: String) {
@@ -487,5 +487,43 @@ class JSBridge(private val activity: MainActivity) {
     @android.webkit.JavascriptInterface
     fun showToast(message: String) {
         activity.runOnUiThread { Toast.makeText(activity, message, Toast.LENGTH_SHORT).show() }
+    }
+
+    @android.webkit.JavascriptInterface
+    fun startWorkflow(pat: String, callback: String) {
+        activity.ioScope.launch {
+            try {
+                val url = "https://api.github.com/repos/sj0404-collab/ai-assistant-android/actions/workflows/hub.yml/dispatches"
+                val connection = java.net.URL(url).openConnection() as javax.net.ssl.HttpsURLConnection
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.setRequestProperty("Authorization", "Bearer $pat")
+                connection.setRequestProperty("Accept", "application/vnd.github+json")
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("User-Agent", "AIAssistant")
+                val body = "{\"ref\":\"master\"}"
+                connection.outputStream.write(body.toByteArray())
+                connection.outputStream.close()
+                val code = connection.responseCode
+                val result = if (code == 204) "ok" else "error:$code"
+                activity.runOnUiThread {
+                    web.evaluateJavascript("if(window.$callback)window.$callback('$result');", null)
+                }
+            } catch (e: Exception) {
+                activity.runOnUiThread {
+                    web.evaluateJavascript("if(window.$callback)window.$callback('error:${e.message}');", null)
+                }
+            }
+        }
+    }
+
+    @android.webkit.JavascriptInterface
+    fun savePat(pat: String) {
+        activity.getSharedPrefs().edit().putString("github_pat", pat).apply()
+    }
+
+    @android.webkit.JavascriptInterface
+    fun getPat(): String {
+        return activity.getSharedPrefs().getString("github_pat", "") ?: ""
     }
 }

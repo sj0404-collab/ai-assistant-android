@@ -44,6 +44,7 @@
         .btn:hover { background: #3a3a45; }
         .btn.primary { background: #2563eb; border-color: #2563eb; }
         .btn.primary:hover { background: #1d4ed8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         #terminal { height: calc(100vh - 44px); margin-top: 44px; }
         #sidebar {
             position: fixed;
@@ -77,11 +78,18 @@
         .modal-title { font-weight: 600; margin-bottom: 16px; }
         .modal-input { width: 100%; background: #0d0d12; border: 1px solid #2a2a35; color: #e4e4e7; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .status-dot.running { background: #22c55e; }
+        .status-dot.starting { background: #f59e0b; animation: pulse 1s infinite; }
+        .status-dot.stopped { background: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
     <div id="toolbar">
         <h1>AI Assistant</h1>
+        <span id="status-indicator"><span class="status-dot stopped"></span><span id="status-text">Stopped</span></span>
+        <button class="btn primary" id="start-session-btn" onclick="showStartModal()">Start Session</button>
         <button class="btn" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18h17"/><path d="M4 12h17"/><path d="M4 6h17"/></svg></button>
         <button class="btn primary" onclick="showNewFileModal()">New File</button>
         <button class="btn" onclick="refreshFiles()">Refresh</button>
@@ -123,6 +131,18 @@
             <div class="modal-actions">
                 <button class="btn" onclick="closeModal('file-view-modal')">Close</button>
                 <button class="btn primary" onclick="downloadCurrentFile()">Download</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="start-modal">
+        <div class="modal-box">
+            <div class="modal-title">Start AI Hub Session</div>
+            <p style="color:#71717a;margin-bottom:16px;font-size:13px">Enter GitHub Personal Access Token (needs <code>repo</code> and <code>workflow</code> scopes) to trigger the workflow.</p>
+            <input class="modal-input" id="pat-input" type="password" placeholder="ghp_xxxxxxxxxxxx">
+            <label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:13px;color:#71717a"><input type="checkbox" id="save-pat"> Save token</label>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('start-modal')">Cancel</button>
+                <button class="btn primary" id="confirm-start-btn" onclick="startWorkflow()">Start</button>
             </div>
         </div>
     </div>
@@ -245,9 +265,55 @@
             } catch (e) { console.error(e); }
         }
 
+        // Start Session
+        function showStartModal() {
+            const modal = document.getElementById('start-modal');
+            const patInput = document.getElementById('pat-input');
+            patInput.value = window.AIBridge?.getPat?.() || '';
+            document.getElementById('save-pat').checked = !!patInput.value;
+            modal.classList.add('open');
+            patInput.focus();
+        }
+        function startWorkflow() {
+            const pat = document.getElementById('pat-input').value.trim();
+            if (!pat) return;
+            const save = document.getElementById('save-pat').checked;
+            const btn = document.getElementById('confirm-start-btn');
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            setStatus('starting', 'Starting workflow...');
+            if (save && window.AIBridge?.savePat) window.AIBridge.savePat(pat);
+            window.startWorkflowCallback = (result) => {
+                btn.disabled = false;
+                btn.textContent = 'Start';
+                if (result === 'ok') {
+                    setStatus('starting', 'Workflow triggered, waiting for hub...');
+                    closeModal('start-modal');
+                } else {
+                    setStatus('stopped', 'Failed: ' + result);
+                    alert('Failed to start: ' + result);
+                }
+            };
+            if (window.AIBridge?.startWorkflow) {
+                window.AIBridge.startWorkflow(pat, 'startWorkflowCallback');
+            }
+        }
+        function setStatus(state, text) {
+            const dot = document.querySelector('#status-indicator .status-dot');
+            const txt = document.getElementById('status-text');
+            dot.className = 'status-dot ' + state;
+            txt.textContent = text;
+        }
+
         // Init
         refreshFiles();
         refreshTools();
+
+        // Check for saved PAT on load
+        if (window.AIBridge?.getPat) {
+            const pat = window.AIBridge.getPat();
+            if (pat) setStatus('stopped', 'Ready (PAT saved)');
+        }
     </script>
 </body>
 </html>
