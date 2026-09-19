@@ -14,6 +14,15 @@ const PORT = process.env.PORT || 8097;
 
 mkdirSync(WORK_DIR, { recursive: true });
 
+// Try to load node-pty at startup
+let ptyModule = null;
+try {
+  ptyModule = await import('node-pty');
+  console.log('node-pty loaded successfully');
+} catch (e) {
+  console.log('node-pty not available, using fallback spawn:', e.message);
+}
+
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.raw({ type: 'application/octet-stream', limit: '50mb' }));
@@ -139,16 +148,22 @@ wss.on('connection', (ws, req) => {
   let shell = process.env.SHELL || '/bin/bash';
 
   // Spawn PTY using node-pty if available
-  try {
-    const pty = await import('node-pty');
-    ptyProcess = pty.spawn(shell, [], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 24,
-      cwd: WORK_DIR,
-      env: { ...process.env, TERM: 'xterm-256color', HUB_WORK_DIR: WORK_DIR }
-    });
-  } catch (e) {
+  if (ptyModule) {
+    try {
+      ptyProcess = ptyModule.spawn(shell, [], {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 24,
+        cwd: WORK_DIR,
+        env: { ...process.env, TERM: 'xterm-256color', HUB_WORK_DIR: WORK_DIR }
+      });
+    } catch (e) {
+      console.log('node-pty spawn failed, using fallback:', e.message);
+      ptyProcess = null;
+    }
+  }
+
+  if (!ptyProcess) {
     // Fallback: simple spawn (no PTY, but works)
     ptyProcess = spawn(shell, [], { cwd: WORK_DIR, env: { ...process.env, TERM: 'xterm-256color' } });
     ptyProcess.stdout.on('data', d => ws.send(JSON.stringify({ type: 'data', data: d.toString() })));
