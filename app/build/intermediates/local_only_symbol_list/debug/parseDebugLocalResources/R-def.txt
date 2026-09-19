@@ -1,0 +1,19 @@
+R_DEF: Internal format may change without notice
+local
+color accent
+color background
+color primary
+color primary_dark
+color surface
+color text_primary
+color text_secondary
+drawable ic_back
+drawable ic_launcher_foreground
+id progressBar
+id webView
+layout activity_main
+string app_name
+string default_hub_url
+string hub_not_running
+style Theme.AiAssistant
+xml file_paths

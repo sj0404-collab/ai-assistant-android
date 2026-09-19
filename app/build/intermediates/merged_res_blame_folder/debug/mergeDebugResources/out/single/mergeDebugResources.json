@@ -1,0 +1,22 @@
+[
+    {
+        "merged": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-debug-41:/xml_file_paths.xml.flat",
+        "source": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-main-43:/xml/file_paths.xml"
+    },
+    {
+        "merged": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-debug-41:/drawable_ic_back.xml.flat",
+        "source": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-main-43:/drawable/ic_back.xml"
+    },
+    {
+        "merged": "com.aiassistant.app-debug-41:/layout_activity_main.xml.flat",
+        "source": "com.aiassistant.app-main-43:/layout/activity_main.xml"
+    },
+    {
+        "merged": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-debug-41:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-main-43:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-debug-41:/layout_activity_main.xml.flat",
+        "source": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-main-43:/layout/activity_main.xml"
+    }
+]

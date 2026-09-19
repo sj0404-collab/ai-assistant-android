@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI Assistant Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0d0d12;
+            color: #e4e4e7;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #terminal-container { height: 100vh; position: relative; }
+        #toolbar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 44px;
+            background: #18181f;
+            border-bottom: 1px solid #2a2a35;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+            z-index: 100;
+        }
+        #toolbar h1 { font-size: 14px; font-weight: 600; color: #e4e4e7; flex: 1; }
+        .btn {
+            background: #2a2a35;
+            border: 1px solid #3a3a45;
+            color: #e4e4e7;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { background: #3a3a45; }
+        .btn.primary { background: #2563eb; border-color: #2563eb; }
+        .btn.primary:hover { background: #1d4ed8; }
+        #terminal { height: calc(100vh - 44px); margin-top: 44px; }
+        #sidebar {
+            position: fixed;
+            top: 44px; right: 0;
+            width: 320px;
+            height: calc(100vh - 44px);
+            background: #18181f;
+            border-left: 1px solid #2a2a35;
+            transform: translateX(100%);
+            transition: transform 0.2s ease;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+        }
+        #sidebar.open { transform: translateX(0); }
+        .sidebar-header { padding: 12px; border-bottom: 1px solid #2a2a35; display: flex; justify-content: space-between; }
+        .sidebar-title { font-weight: 600; font-size: 13px; }
+        .sidebar-tabs { display: flex; border-bottom: 1px solid #2a2a35; }
+        .sidebar-tab { flex: 1; padding: 10px; background: none; border: none; color: #71717a; font-size: 12px; cursor: pointer; }
+        .sidebar-tab.active { color: #e4e4e7; border-bottom: 2px solid #2563eb; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+        .file-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; cursor: pointer; }
+        .file-item:hover { background: #2a2a35; }
+        .file-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+        .file-info { flex: 1; min-width: 0; }
+        .file-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-meta { font-size: 11px; color: #71717a; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .modal.open { display: flex; }
+        .modal-box { background: #18181f; border: 1px solid #2a2a35; border-radius: 12px; padding: 20px; width: 90%; max-width: 400px; }
+        .modal-title { font-weight: 600; margin-bottom: 16px; }
+        .modal-input { width: 100%; background: #0d0d12; border: 1px solid #2a2a35; color: #e4e4e7; padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <h1>AI Assistant</h1>
+        <button class="btn" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18h17"/><path d="M4 12h17"/><path d="M4 6h17"/></svg></button>
+        <button class="btn primary" onclick="showNewFileModal()">New File</button>
+        <button class="btn" onclick="refreshFiles()">Refresh</button>
+    </div>
+    <div id="terminal-container">
+        <div id="terminal"></div>
+    </div>
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">Workspace</span>
+            <button class="btn" onclick="toggleSidebar()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="sidebar-tabs">
+            <button class="sidebar-tab active" onclick="switchTab('files')">Files</button>
+            <button class="sidebar-tab" onclick="switchTab('tools')">Tools</button>
+        </div>
+        <div class="sidebar-content" id="files-tab">
+            <div id="file-list">Loading...</div>
+        </div>
+        <div class="sidebar-content" id="tools-tab" style="display:none">
+            <div id="tools-list">Loading...</div>
+        </div>
+    </div>
+    <div class="modal" id="new-file-modal">
+        <div class="modal-box">
+            <div class="modal-title">New File</div>
+            <input class="modal-input" id="new-file-name" placeholder="filename.txt">
+            <textarea class="modal-input" id="new-file-content" placeholder="Content..." rows="8"></textarea>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('new-file-modal')">Cancel</button>
+                <button class="btn primary" onclick="createFile()">Create</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="file-view-modal">
+        <div class="modal-box">
+            <div class="modal-title" id="view-file-name">File</div>
+            <pre id="view-file-content" style="white-space:pre-wrap;max-height:60vh;overflow:auto;font-size:12px;background:#0d0d12;padding:12px;border-radius:8px;"></pre>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('file-view-modal')">Close</button>
+                <button class="btn primary" onclick="downloadCurrentFile()">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script>
+        const HUB_TOKEN = '';
+        const API_BASE = '';
+        const WS_URL = `wss://${location.host}/ws/terminal`;
+
+        // Terminal
+        const term = new Terminal({
+            theme: { background: '#0d0d12', foreground: '#e4e4e7', cursor: '#2563eb' },
+            fontSize: 14,
+            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+            cursorBlink: true,
+            convertEol: true,
+        });
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+        window.addEventListener('resize', () => fitAddon.fit());
+
+        // WebSocket
+        let ws;
+        function connectWS() {
+            ws = new WebSocket(WS_URL);
+            ws.onopen = () => { console.log('WS connected'); term.write('\r\n\x1b[1;36mConnected to AI Hub\x1b[0m\r\n$ '); };
+            ws.onmessage = e => {
+                const m = JSON.parse(e.data);
+                if (m.type === 'data') term.write(m.data);
+                else if (m.type === 'exit') term.write('\r\n\x1b[31m[Session ended]\x1b[0m\r\n');
+            };
+            ws.onclose = () => { setTimeout(connectWS, 3000); };
+            ws.onerror = e => console.error('WS error', e);
+        }
+        connectWS();
+
+        term.onData(data => { if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'data', data })); });
+
+        // Sidebar
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+        function switchTab(tab) {
+            document.querySelectorAll('.sidebar-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+            document.getElementById('files-tab').style.display = tab === 'files' ? 'block' : 'none';
+            document.getElementById('tools-tab').style.display = tab === 'tools' ? 'block' : 'none';
+            if (tab === 'files') refreshFiles();
+            else refreshTools();
+        }
+
+        // Files
+        async function refreshFiles() {
+            try {
+                const r = await fetch(`${API_BASE}/api/files`, { headers: HUB_TOKEN ? { 'x-hub-token': HUB_TOKEN } : {} });
+                const { files } = await r.json();
+                const list = document.getElementById('file-list');
+                if (!files.length) { list.innerHTML = '<div style="color:#71717a;padding:12px;text-align:center">No files</div>'; return; }
+                list.innerHTML = files.map(f => `
+                    <div class="file-item" onclick="openFile('${f.name}')">
+                        <div class="file-icon">${f.isDir ? '📁' : '📄'}</div>
+                        <div class="file-info">
+                            <div class="file-name">${f.name}</div>
+                            <div class="file-meta">${f.isDir ? '' : formatSize(f.size)} • ${new Date(f.mtime).toLocaleString()}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+        function formatSize(b) { if (b < 1024) return b + 'B'; if (b < 1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
+        function openFile(name) {
+            fetch(`${API_BASE}/api/files/${encodeURIComponent(name)}`, { headers: HUB_TOKEN ? { 'x-hub-token': HUB_TOKEN } : {} })
+                .then(r => r.blob()).then(b => b.text())
+                .then(text => {
+                    document.getElementById('view-file-name').textContent = name;
+                    document.getElementById('view-file-content').textContent = text;
+                    document.getElementById('file-view-modal').classList.add('open');
+                    window.currentViewFile = name;
+                });
+        }
+        function downloadCurrentFile() {
+            const name = window.currentViewFile;
+            fetch(`${API_BASE}/api/files/${encodeURIComponent(name)}`, { headers: HUB_TOKEN ? { 'x-hub-token': HUB_TOKEN } : {} })
+                .then(r => r.blob()).then(b => {
+                    const url = URL.createObjectURL(b);
+                    const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+                    URL.revokeObjectURL(url);
+                });
+        }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+        function showNewFileModal() { document.getElementById('new-file-modal').classList.add('open'); document.getElementById('new-file-name').focus(); }
+        function createFile() {
+            const name = document.getElementById('new-file-name').value.trim();
+            const content = document.getElementById('new-file-content').value;
+            if (!name) return;
+            fetch(`${API_BASE}/api/files`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/octet-stream', ...(HUB_TOKEN ? { 'x-hub-token': HUB_TOKEN } : {}), 'x-file-name': name },
+                body: content
+            }).then(() => { closeModal('new-file-modal'); refreshFiles(); });
+        }
+
+        // Tools
+        async function refreshTools() {
+            try {
+                const r = await fetch(`${API_BASE}/api/tools`, { headers: HUB_TOKEN ? { 'x-hub-token': HUB_TOKEN } : {} });
+                const { tools } = await r.json();
+                document.getElementById('tools-list').innerHTML = tools.map(t => `
+                    <div class="file-item">
+                        <div class="file-icon">${t.installed ? '✅' : '❌'}</div>
+                        <div class="file-info">
+                            <div class="file-name">${t.name}</div>
+                            <div class="file-meta">${t.installed ? t.path : 'Not installed'}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { console.error(e); }
+        }
+
+        // Init
+        refreshFiles();
+        refreshTools();
+    </script>
+</body>
+</html>

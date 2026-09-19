@@ -1,25 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AI Assistant</string>
-    <string name="select_file">Select File</string>
-    <string name="no_file_selected">No file selected</string>
-    <string name="select_file_btn">Select File</string>
-    <string name="ai_provider">AI Provider</string>
-    <string name="api_key_hint">API Key (optional)</string>
-    <string name="prompt">Prompt</string>
-    <string name="prompt_hint">Enter your prompt here...</string>
-    <string name="send">Send</string>
-    <string name="terminal_btn">Terminal</string>
-    <string name="terminal">Terminal</string>
-    <string name="response">Response</string>
-    <string name="settings">Settings</string>
-    <string name="openrouter">OpenRouter</string>
-    <string name="openai">OpenAI</string>
-    <string name="anthropic">Anthropic</string>
-    <string name="local">Local (No API)</string>
-    <string name="processing">Processing...</string>
-    <string name="error_no_file">Please select a file first</string>
-    <string name="error_no_prompt">Please enter a prompt</string>
-    <string name="error_api">API Error: </string>
-    <string name="file_selected">File: %s</string>
+    <string name="default_hub_url">https://panel.symbiosis.local/index.html</string>
+    <string name="hub_not_running">Hub session not running.\n\nStart a session from GitHub Actions:\nRepository → Actions → AI Assistant Hub → Run workflow</string>
 </resources>

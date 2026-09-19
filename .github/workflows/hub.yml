@@ -1,0 +1,180 @@
+name: AI Assistant Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      token:
+        description: "Gate token (empty = no auth)"
+        type: string
+        default: ""
+      gh_token:
+        description: "GitHub PAT for /gh proxy (empty = off)"
+        type: string
+        default: ""
+      label:
+        description: "Session label"
+        type: string
+        default: "ai-assistant"
+      runner_linux:
+        description: "Runner label"
+        type: string
+        default: "ubuntu-latest"
+      preinstall:
+        description: "Preinstall all CLI agents"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  hub:
+    runs-on: ${{ inputs.runner_linux }}
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Mask tokens in logs
+        if: inputs.token != '' || inputs.gh_token != ''
+        shell: bash
+        env:
+          ZT_MASK: ${{ inputs.token }}
+          GH_MASK: ${{ inputs.gh_token }}
+        run: |
+          echo "::add-mask::$ZT_MASK"
+          echo "::add-mask::$GH_MASK"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Restore npm/pip caches
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.npm
+            ~/.cache/pip
+          key: hub-pkg-${{ github.run_id }}
+          restore-keys: hub-pkg-
+
+      - name: Install CLI agents
+        if: inputs.preinstall
+        run: |
+          PKGS="opencode-ai @anthropic-ai/claude-code @google/gemini-cli @openai/codex @github/copilot @qwen-code/qwen-code http-server"
+          npm install -g $PKGS >/tmp/npm-i.log 2>&1 || \
+            for p in $PKGS; do npm install -g "$p" >/tmp/npm-i.log 2>&1 \
+              && echo "installed $p" || echo "skipped $p"; done
+          pip install --quiet aider-chat goose-ai >/tmp/pip-i.log 2>&1 || \
+            for p in aider-chat goose-ai; do pip install --quiet "$p" >/tmp/pip-i.log 2>&1 \
+              && echo "installed $p" || echo "skipped $p"; done
+          echo "--- on PATH now ---"
+          for c in opencode claude gemini codex copilot qwen aider goose http-server; do
+            command -v "$c" >/dev/null 2>&1 && echo "  $c: $(command -v $c)" || echo "  $c: -"
+          done
+
+      - name: Install hub dependencies
+        working-directory: npm-hub
+        run: npm ci
+
+      - name: Create work folder
+        run: mkdir -p ~/hub-work
+
+      - name: Start hub and open tunnel
+        run: |
+          cd "$GITHUB_WORKSPACE/npm-hub"
+          HUB_TOKEN='${{ inputs.token }}' GH_TOKEN='${{ inputs.gh_token }}' PORT=8097 nohup node src/server.js > /tmp/hub.log 2>&1 &
+          for i in $(seq 1 60); do
+            body=$(curl -s -m 15 -H "x-hub-token: ${{ inputs.token }}" "http://127.0.0.1:8097/api/health" || true)
+            echo "$body" | grep -q '"ok":true' && break
+            sleep 2
+          done
+          body=$(curl -s -m 15 -H "x-hub-token: ${{ inputs.token }}" "http://127.0.0.1:8097/api/health" || true)
+          if ! echo "$body" | grep -q '"ok":true'; then
+            echo "::error::hub did not start"
+            tail -40 /tmp/hub.log
+            exit 1
+          fi
+          echo "hub is up on 8097"
+
+          URL=$(bash "$GITHUB_WORKSPACE/tools/open_tunnel.sh" 8097 /tmp/tunnel.log)
+          if [ -z "$URL" ]; then
+            echo "::error::no tunnel came up"
+            tail -25 /tmp/tunnel.log
+            exit 1
+          fi
+          echo "$URL" > /tmp/hub-url
+
+          TOOLS=$(python3 -c "
+          import json, urllib.request
+          try:
+              _zt = urllib.request.Request('http://127.0.0.1:8097/api/tools', headers={'x-hub-token': '${{ inputs.token }}'})
+              d = json.load(urllib.request.urlopen(_zt, timeout=10))
+              names = [t['name'] for t in d.get('tools', []) if t.get('installed')]
+          except Exception:
+              names = []
+          print(', '.join(names) if names else 'none')
+          ")
+
+          {
+            echo "## AI Assistant Hub"
+            echo ""
+            echo "**[Open Terminal]($URL)**"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Address | \`$URL\` |"
+            echo "| Tools | $TOOLS |"
+            echo "| Label | \`${{ inputs.label }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "=================================================="
+          echo " Hub: $URL"
+          echo " Tools: $TOOLS"
+          echo "=================================================="
+
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            bash "$GITHUB_WORKSPACE/tools/publish_session.sh" \
+              "slot=hub" "kind=AI-Hub" "os=linux" \
+              "url=$URL" "label=${{ inputs.label }}" \
+              "tools=$TOOLS" "auth=gate"
+
+      - name: Keep session alive
+        run: |
+          HUBDIR="$GITHUB_WORKSPACE/npm-hub"
+          PIDFILE=/tmp/cloudflared-8097.pid
+          for i in $(seq 1 1400); do
+            sleep 15
+            if ! curl -sf -o /dev/null -m 10 -H "x-hub-token: ${{ inputs.token }}" http://127.0.0.1:8097/api/health; then
+              echo "::warning::hub stopped; restarting"
+              pkill -f "src/server[.]js" 2>/dev/null || true
+              cd "$HUBDIR"
+              HUB_TOKEN='${{ inputs.token }}' GH_TOKEN='${{ inputs.gh_token }}' PORT=8097 nohup node src/server.js >> /tmp/hub.log 2>&1 &
+              sleep 5
+            fi
+            CUR=$(cat /tmp/hub-url 2>/dev/null || echo)
+            PID=$(cat "$PIDFILE" 2>/dev/null || echo)
+            EDGE=""
+            if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null && [ -n "$CUR" ]; then
+              code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$CUR/" 2>/dev/null || true)
+              case "$code" in 2*|3*|4*) EDGE=1 ;; esac
+            fi
+            if [ -n "$EDGE" ]; then continue; fi
+            echo "::warning::tunnel dead; reopening"
+            URL=$(bash "$GITHUB_WORKSPACE/tools/open_tunnel.sh" 8097 /tmp/tunnel2.log) || continue
+            [ -n "$URL" ] || continue
+            echo "$URL" > /tmp/hub-url
+            echo "back up on $URL"
+            GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+              bash "$GITHUB_WORKSPACE/tools/publish_session.sh" \
+                "slot=hub" "kind=AI-Hub" "os=linux" \
+                "url=$URL" "label=${{ inputs.label }}" \
+                "tools=$TOOLS" "auth=gate"
+          done
+
+      - name: Clear session
+        if: always()
+        run: |
+          GH_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            bash "$GITHUB_WORKSPACE/tools/publish_session.sh" "slot=hub" "state=ended" || true

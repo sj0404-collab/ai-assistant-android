@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.aiassistant.app-mergeDebugResources-40:/layout/activity_main.xml",
+        "source": "com.aiassistant.app-main-43:/layout/activity_main.xml"
+    },
+    {
+        "merged": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-mergeDebugResources-40:/layout/activity_main.xml",
+        "source": "/home/runner/.gradle/daemon/9.7.1/com.aiassistant.app-main-43:/layout/activity_main.xml"
+    }
+]
