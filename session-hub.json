@@ -1,1 +1,1 @@
-{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://console.serveo.net", "label": "ai-assistant", "tools": "opencode, claude, gemini, codex, copilot, qwen, aider, http-server", "auth": "gate", "updated": "2026-09-20T13:12:55Z"}
+{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://console.serveo.net", "label": "ai-assistant", "tools": "", "auth": "gate", "updated": "2026-09-20T13:26:16Z"}
