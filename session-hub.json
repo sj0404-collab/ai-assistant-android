@@ -1,1 +1,1 @@
-{"slot": "hub", "state": "running", "kind": "AI-Hub", "os": "linux", "url": "https://console.serveo.net", "label": "test-emulator", "tools": "", "auth": "gate", "updated": "2026-09-20T03:15:38Z"}
+{"slot": "hub", "state": "ended", "kind": "AI-Hub", "os": "linux", "url": "", "label": "", "tools": "", "auth": "gate", "updated": "2026-09-20T03:24:26Z"}
